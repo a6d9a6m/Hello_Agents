@@ -23,3 +23,6 @@ venv/
 # OS files
 Thumbs.db
 .DS_Store
+
+#其他文件
+teast01.py
