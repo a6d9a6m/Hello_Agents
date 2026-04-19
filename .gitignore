@@ -25,4 +25,5 @@ Thumbs.db
 .DS_Store
 
 #其他文件
+.codex
 teast01.py

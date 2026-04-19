@@ -1,27 +1,33 @@
-"""Message models shared across agents and LLMs."""
+"""消息系统"""
+from typing import Optional, Dict, Any, Literal
+from datetime import datetime
+from pydantic import BaseModel
 
-from __future__ import annotations
+# 定义消息角色的类型，限制其取值
+MessageRole = Literal["user", "assistant", "system", "tool"]
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
-
-
-@dataclass(slots=True)
-class Message:
-    """Represents a single turn in a conversation."""
-
-    role: str
+class Message(BaseModel):
+    """消息类"""
+    
     content: str
-    name: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-
-    def to_dict(self) -> dict[str, Any]:
+    role: MessageRole
+    timestamp: datetime = None
+    metadata: Optional[Dict[str, Any]] = None
+    
+    def __init__(self, content: str, role: MessageRole, **kwargs):
+        super().__init__(
+            content=content,
+            role=role,
+            timestamp=kwargs.get('timestamp', datetime.now()),
+            metadata=kwargs.get('metadata', {})
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式（OpenAI API格式）"""
         return {
             "role": self.role,
-            "content": self.content,
-            "name": self.name,
-            "metadata": self.metadata,
-            "created_at": self.created_at.isoformat(),
+            "content": self.content
         }
+    
+    def __str__(self) -> str:
+        return f"[{self.role}] {self.content}"
