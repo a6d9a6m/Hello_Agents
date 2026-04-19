@@ -1,27 +1,42 @@
-"""Base agent abstraction."""
-
-from __future__ import annotations
-
+"""Agent基类"""
 from abc import ABC, abstractmethod
-
-from core.llm import HelloAgentsLLM
-from core.message import Message
-
+from typing import Optional, Any
+from .message import Message
+from .llm import HelloAgentsLLM
+from .config import Config
 
 class Agent(ABC):
-    """Base class for all agent implementations."""
-
-    def __init__(self, llm: HelloAgentsLLM, name: str | None = None) -> None:
+    """Agent基类"""
+    
+    def __init__(
+        self,
+        name: str,
+        llm: HelloAgentsLLM,
+        system_prompt: Optional[str] = None,
+        config: Optional[Config] = None
+    ):
+        self.name = name
         self.llm = llm
-        self.name = name or self.__class__.__name__
-        self.memory: list[Message] = []
-
-    def reset(self) -> None:
-        self.memory.clear()
-
-    def add_message(self, message: Message) -> None:
-        self.memory.append(message)
-
+        self.system_prompt = system_prompt
+        self.config = config or Config()
+        self._history: list[Message] = []
+    
     @abstractmethod
-    def run(self, user_input: str) -> Message:
-        """Execute the agent for a single user input."""
+    def run(self, input_text: str, **kwargs) -> str:
+        """运行Agent"""
+        pass
+    
+    def add_message(self, message: Message):
+        """添加消息到历史记录"""
+        self._history.append(message)
+    
+    def clear_history(self):
+        """清空历史记录"""
+        self._history.clear()
+    
+    def get_history(self) -> list[Message]:
+        """获取历史记录"""
+        return self._history.copy()
+    
+    def __str__(self) -> str:
+        return f"Agent(name={self.name}, provider={self.llm.provider})"
