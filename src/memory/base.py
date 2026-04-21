@@ -30,6 +30,11 @@ class MemoryItem:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     ttl: Optional[int] = None  # 生存时间（秒），None表示永久
+    importance: float = 0.5  # 重要性评分（0-1）
+    emotion: Optional[str] = None  # 情感标签
+    tags: List[str] = field(default_factory=list)  # 关联标签
+    location: Optional[str] = None  # 位置信息
+    source: Optional[str] = None  # 来源信息
 
 
 class MemoryConfig(BaseModel):
@@ -86,3 +91,30 @@ class BaseMemory(ABC):
     def clear(self) -> bool:
         """清空所有记忆"""
         pass
+    
+    @abstractmethod
+    def get_all_items(self) -> List[MemoryItem]:
+        """获取所有记忆项"""
+        pass
+    
+    @abstractmethod
+    def search_by_keyword(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """关键词搜索"""
+        pass
+    
+    @abstractmethod
+    def search_by_semantic(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """语义搜索"""
+        pass
+    
+    def search_hybrid(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """混合搜索（默认实现）"""
+        keyword_results = self.search_by_keyword(query, limit=limit)
+        semantic_results = self.search_by_semantic(query, limit=limit)
+        
+        # 合并结果，去重
+        all_results = {}
+        for item in keyword_results + semantic_results:
+            all_results[item.id] = item
+        
+        return list(all_results.values())[:limit]

@@ -137,6 +137,40 @@ class SemanticMemory(BaseMemory):
         
         return self.graph_store.get_related_nodes(concept, depth)
     
+    def get_all_items(self) -> List[MemoryItem]:
+        """获取所有语义记忆项"""
+        return self.retrieve("", limit=1000)  # 获取最多1000条
+    
+    def search_by_keyword(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """关键词搜索"""
+        # 语义记忆的关键词搜索可以使用图数据库的文本搜索
+        if not self.graph_store:
+            return self.retrieve(query, limit=limit)
+        
+        try:
+            # 尝试使用图数据库的文本搜索
+            graph_results = self.graph_store.search_by_text(query, limit=limit)
+            if graph_results:
+                # 转换为MemoryItem
+                items = []
+                for result in graph_results:
+                    item = MemoryItem(
+                        id=result.get("id", ""),
+                        content=result.get("content", query),
+                        memory_type=MemoryType.SEMANTIC,
+                        metadata=result.get("properties", {})
+                    )
+                    items.append(item)
+                return items
+        except:
+            pass
+        
+        return self.retrieve(query, limit=limit)
+    
+    def search_by_semantic(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """语义搜索（使用向量检索）"""
+        return self.retrieve(query, limit=limit)
+    
     def _extract_knowledge(self, text: str) -> Tuple[List[Dict], List[Dict]]:
         """从文本中提取知识（实体和关系）"""
         # 这里应该使用NLP技术提取实体和关系

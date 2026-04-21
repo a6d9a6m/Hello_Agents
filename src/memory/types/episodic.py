@@ -120,6 +120,28 @@ class EpisodicMemory(BaseMemory):
         # 简化实现：返回所有项
         return self.retrieve("", limit=100)
     
+    def get_all_items(self) -> List[MemoryItem]:
+        """获取所有情景记忆项"""
+        return self.retrieve("", limit=1000)  # 获取最多1000条
+    
+    def search_by_keyword(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """关键词搜索"""
+        if not self.document_store:
+            return []
+        
+        # 使用文档存储的关键词搜索
+        results = []
+        try:
+            # 这里假设document_store有search_by_keyword方法
+            # 简化实现：使用retrieve
+            return self.retrieve(query, limit=limit)
+        except:
+            return []
+    
+    def search_by_semantic(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """语义搜索（使用向量检索）"""
+        return self.retrieve(query, limit=limit)
+    
     def link_events(self, event1_id: str, event2_id: str, relation: str = "related"):
         """链接两个事件"""
         if self.document_store:

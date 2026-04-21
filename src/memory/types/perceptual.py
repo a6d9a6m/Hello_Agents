@@ -175,6 +175,39 @@ class PerceptualMemory(BaseMemory):
         
         return None
     
+    def get_all_items(self) -> List[MemoryItem]:
+        """获取所有感知记忆项"""
+        return self.retrieve("", limit=1000)  # 获取最多1000条
+    
+    def search_by_keyword(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """关键词搜索"""
+        # 感知记忆的关键词搜索可以搜索文本描述
+        if not self.document_store:
+            return self.retrieve(query, limit=limit)
+        
+        try:
+            # 使用文档存储的关键词搜索
+            doc_results = self.document_store.search_by_keyword(query, limit=limit)
+            if doc_results:
+                items = []
+                for result in doc_results:
+                    item = MemoryItem(
+                        id=result.get("id", ""),
+                        content=result.get("content", query),
+                        memory_type=MemoryType.PERCEPTUAL,
+                        metadata=result.get("metadata", {})
+                    )
+                    items.append(item)
+                return items
+        except:
+            pass
+        
+        return self.retrieve(query, limit=limit)
+    
+    def search_by_semantic(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """语义搜索（使用向量检索）"""
+        return self.retrieve(query, limit=limit)
+    
     def _generate_id(self) -> str:
         """生成唯一ID"""
         import uuid

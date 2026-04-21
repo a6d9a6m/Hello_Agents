@@ -103,6 +103,55 @@ class WorkingMemory(BaseMemory):
         for key in expired_keys:
             del self.memories[key]
     
+    def get_all_items(self) -> List[MemoryItem]:
+        """获取所有工作记忆项"""
+        self._cleanup()
+        return list(self.memories.values())
+    
+    def search_by_keyword(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """关键词搜索"""
+        self._cleanup()
+        
+        results = []
+        query_lower = query.lower()
+        
+        for item in reversed(self.memories.values()):  # 从最新到最旧
+            # 检查内容中的关键词
+            if query_lower in item.content.lower():
+                results.append(item)
+            # 检查标签中的关键词
+            elif any(query_lower in tag.lower() for tag in item.tags):
+                results.append(item)
+            
+            if len(results) >= limit:
+                break
+        
+        return results
+    
+    def search_by_semantic(self, query: str, limit: int = 10) -> List[MemoryItem]:
+        """语义搜索（工作记忆使用简单相似度）"""
+        self._cleanup()
+        
+        # 对于工作记忆，使用简单的文本相似度
+        results = []
+        query_lower = query.lower()
+        
+        for item in reversed(self.memories.values()):
+            # 计算简单的文本重叠度
+            content_lower = item.content.lower()
+            words_query = set(query_lower.split())
+            words_content = set(content_lower.split())
+            
+            if words_query and words_content:
+                overlap = len(words_query.intersection(words_content)) / len(words_query)
+                if overlap > 0.3:  # 30%重叠阈值
+                    results.append(item)
+            
+            if len(results) >= limit:
+                break
+        
+        return results
+    
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
         self._cleanup()

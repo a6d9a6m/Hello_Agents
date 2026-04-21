@@ -46,32 +46,30 @@ def test_memory_tool():
     
     tool = MemoryTool()
     
-    # 测试存储
+    # 测试存储（使用新的add操作）
     print("\n1. 测试存储记忆...")
-    result = tool.run(
-        operation="store",
+    result = tool.execute(
+        action="add",
         content="项目截止日期是下周五",
         memory_type="working",
         metadata={"priority": "high", "project": "AI系统"}
     )
-    print(f"   结果: {result.output}")
-    print(f"   成功: {result.success}")
+    print(f"   结果: {result}")
     
-    # 测试检索
+    # 测试检索（使用新的search操作）
     print("\n2. 测试检索记忆...")
-    result = tool.run(
-        operation="retrieve",
+    result = tool.execute(
+        action="search",
         content="截止日期",
         memory_type="working",
         limit=3
     )
-    print(f"   结果: {result.output[:100]}...")
-    print(f"   成功: {result.success}")
+    print(f"   结果: {result[:100]}...")
     
     # 测试统计
     print("\n3. 测试获取统计...")
-    result = tool.run(operation="stats")
-    print(f"   结果: {result.output[:100]}...")
+    result = tool.execute(action="stats")
+    print(f"   结果: {result[:100]}...")
     
     print("\n[完成] 记忆工具测试完成")
 
