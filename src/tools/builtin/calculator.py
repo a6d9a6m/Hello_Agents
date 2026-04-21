@@ -2,17 +2,24 @@
 
 from __future__ import annotations
 
-from tools.base import BaseTool, ToolResult
+from src.tools.base import Tool, ToolParameter, ToolResult
 
 
-class CalculatorTool(BaseTool):
+class CalculatorTool(Tool):
     """Evaluate a basic Python arithmetic expression."""
 
     name = "calculator"
     description = "Evaluate arithmetic expressions safely."
+    parameters = [
+        ToolParameter(
+            name="expression",
+            param_type=str,
+            description="Arithmetic expression to evaluate.",
+        )
+    ]
 
-    def run(self, **kwargs) -> ToolResult:
-        expression = kwargs.get("expression", "")
+    def execute(self, **validated) -> ToolResult:
+        expression = validated["expression"]
         allowed_chars = set("0123456789+-*/(). %")
         if not expression or any(char not in allowed_chars for char in expression):
             return ToolResult(

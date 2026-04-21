@@ -29,3 +29,5 @@ teast01.py
 
 #ai memory
 *.local.md
+.opencode
+.agents

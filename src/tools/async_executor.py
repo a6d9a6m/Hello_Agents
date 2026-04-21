@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from tools.base import ToolResult
-from tools.registry import ToolRegistry
+from src.tools.base import ToolResult
+from src.tools.registry import ToolRegistry
 
 
 class AsyncToolExecutor:

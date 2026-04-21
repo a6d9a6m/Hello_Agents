@@ -1,17 +1,16 @@
 """Example entrypoint for the Hello_Agents scaffold."""
 
-from core.config import Settings
-from core.llm import MockLLM
-from agents.simple_agent import SimpleAgent
+from src.core.config import Config
+from src.core.llm import MockLLM
+from src.agents.simple_agent import SimpleAgent
 
 
 def main() -> None:
-    settings = Settings.from_env()
-    settings.validate()
+    config = Config.from_env()
 
-    agent = SimpleAgent(llm=MockLLM())
+    agent = SimpleAgent(name="hello_agent", llm=MockLLM())
     response = agent.run("你好，介绍一下 Hello_Agents 的基础结构。")
-    print(f"[{settings.app_name}] {response.content}")
+    print(f"[Hello_Agents] {response.content}")
 
 
 if __name__ == "__main__":
