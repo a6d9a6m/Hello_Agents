@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "oc-create-command": {
+      "source": "sequenzia/agent-alchemy",
+      "sourceType": "github",
+      "computedHash": "9701f7bce41fc6b28d822ba96f411b9017b71ae7922c949a6f8892d354af1cc1"
+    },
+    "oc-update-agent": {
+      "source": "sequenzia/agent-alchemy",
+      "sourceType": "github",
+      "computedHash": "01a0b7f4b8bdb794a50c219b32f9c62d091d569b6694e14411bb9dd9fb05578a"
+    },
+    "oc-update-command": {
+      "source": "sequenzia/agent-alchemy",
+      "sourceType": "github",
+      "computedHash": "ed4cd45055781627a1a63533d2a5e2962ebb833056080eb87eb204eff37c10d8"
+    },
+    "oc-update-skill": {
+      "source": "sequenzia/agent-alchemy",
+      "sourceType": "github",
+      "computedHash": "e676a38fe63532c4c4d22c9fd09cbaebb4771ac3e5fbb3fd86f6018a8b8dc38d"
+    }
+  }
+}
