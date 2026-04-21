@@ -1,4 +1,4 @@
-"""Async wrapper for running multiple tools concurrently."""
+"""用于并发运行多个工具的异步包装器"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from src.tools.registry import ToolRegistry
 
 
 class AsyncToolExecutor:
-    """Execute registered tools concurrently via asyncio."""
+    """通过asyncio并发执行已注册的工具"""
 
     def __init__(self, registry: ToolRegistry) -> None:
         self.registry = registry

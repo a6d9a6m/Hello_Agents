@@ -1,4 +1,4 @@
-"""Simple calculator tool."""
+"""简单计算器工具"""
 
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ from src.tools.base import Tool, ToolParameter, ToolResult
 
 
 class CalculatorTool(Tool):
-    """Evaluate a basic Python arithmetic expression."""
+    """评估基本的Python算术表达式"""
 
     name = "calculator"
-    description = "Evaluate arithmetic expressions safely."
+    description = "安全地评估算术表达式。"
     parameters = [
         ToolParameter(
             name="expression",
             param_type=str,
-            description="Arithmetic expression to evaluate.",
+            description="要评估的算术表达式。",
         )
     ]
 
@@ -24,7 +24,7 @@ class CalculatorTool(Tool):
         if not expression or any(char not in allowed_chars for char in expression):
             return ToolResult(
                 tool_name=self.name,
-                output="Unsupported expression.",
+                output="不支持的表达式。",
                 success=False,
             )
         try:

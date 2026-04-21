@@ -1,4 +1,4 @@
-"""Tool registration and lookup."""
+"""工具注册与查找"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from src.tools.base import Tool
 
 
 class ToolRegistry:
-    """Registry that stores available tools by name."""
+    """按名称存储可用工具的注册表"""
 
     def __init__(self, tools: Iterable[Tool] | None = None) -> None:
         self._tools: dict[str, Tool] = {}
@@ -20,7 +20,7 @@ class ToolRegistry:
 
     def register(self, tool: Tool) -> None:
         if tool.name in self._tools:
-            raise ToolError(f"Tool '{tool.name}' is already registered.")
+            raise ToolError(f"工具 '{tool.name}' 已注册。")
         self._tools[tool.name] = tool
 
     def register_many(self, tools: Iterable[Tool]) -> None:
@@ -31,7 +31,7 @@ class ToolRegistry:
         try:
             return self._tools[tool_name]
         except KeyError as exc:
-            raise ToolError(f"Tool '{tool_name}' is not registered.") from exc
+            raise ToolError(f"工具 '{tool_name}' 未注册。") from exc
 
     def list_tools(self) -> list[str]:
         return sorted(self._tools.keys())
@@ -55,7 +55,7 @@ class ToolRegistry:
             signature = inspect.signature(candidate)
             if any(parameter.default is inspect._empty for parameter in signature.parameters.values()):
                 raise ToolError(
-                    f"Tool class '{candidate.__name__}' must be instantiable without arguments."
+                    f"工具类 '{candidate.__name__}' 必须能够无参数实例化。"
                 )
             tool = candidate()
             self.register(tool)

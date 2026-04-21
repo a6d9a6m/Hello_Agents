@@ -1,4 +1,4 @@
-"""Plan-and-solve agent skeleton."""
+"""计划-求解Agent骨架"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from src.core.message import Message
 
 
 class PlanAndSolveAgent(Agent):
-    """Agent that asks the model to plan before answering."""
+    """要求模型先制定计划再回答的Agent"""
 
     def run(self, user_input: str) -> Message:
         self.ensure_system_prompt()
@@ -16,8 +16,8 @@ class PlanAndSolveAgent(Agent):
         plan_request = Message(
             role="user",
             content=(
-                "Create a concise plan only for the user's question. "
-                "Do not solve it yet."
+                "请仅为用户的问题制定一个简洁的计划。"
+                "暂时不要解决问题。"
             ),
         )
         self.add_message(plan_request)
@@ -27,7 +27,7 @@ class PlanAndSolveAgent(Agent):
         solve_request = Message(
             role="user",
             content=(
-                "Using the user's question and the plan above, provide the final answer."
+                "基于用户的问题和上面的计划，提供最终答案。"
             ),
         )
         self.add_message(solve_request)

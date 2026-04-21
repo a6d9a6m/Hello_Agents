@@ -1,4 +1,4 @@
-"""Simple agent implementation."""
+"""简单Agent实现"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from src.core.message import Message
 
 
 class SimpleAgent(Agent):
-    """A minimal single-pass agent."""
+    """最小化的单轮处理Agent"""
 
     def run(self, user_input: str) -> Message:
         self.add_message(Message(role="user", content=user_input))

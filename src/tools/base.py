@@ -1,4 +1,4 @@
-"""Tool base abstractions."""
+"""工具基础抽象"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from src.core.exceptions import ToolError
 
 @dataclass(slots=True)
 class ToolResult:
-    """Normalized tool execution result."""
+    """标准化的工具执行结果"""
 
     tool_name: str
     output: Any
@@ -24,7 +24,7 @@ _UNSET = object()
 
 @dataclass(slots=True)
 class ToolParameter:
-    """Declarative tool parameter definition."""
+    """声明式工具参数定义"""
 
     name: str
     param_type: type
@@ -34,25 +34,25 @@ class ToolParameter:
     enum: list[Any] | None = None
 
     def validate(self, value: Any) -> Any:
-        """Validate a single parameter value."""
+        """验证单个参数值"""
         expected_type = self.param_type
         if expected_type not in {str, int, float, bool, list, dict}:
-            raise ToolError(f"Unsupported parameter type for '{self.name}'.")
+            raise ToolError(f"参数 '{self.name}' 的类型不支持。")
 
         if expected_type is bool:
             if type(value) is not bool:
-                raise ToolError(f"Parameter '{self.name}' must be of type bool.")
+                raise ToolError(f"参数 '{self.name}' 必须是布尔类型。")
         elif expected_type is int:
             if type(value) is not int:
-                raise ToolError(f"Parameter '{self.name}' must be of type int.")
+                raise ToolError(f"参数 '{self.name}' 必须是整数类型。")
         elif not isinstance(value, expected_type):
             raise ToolError(
-                f"Parameter '{self.name}' must be of type {expected_type.__name__}."
+                f"参数 '{self.name}' 必须是 {expected_type.__name__} 类型。"
             )
 
         if self.enum is not None and value not in self.enum:
             raise ToolError(
-                f"Parameter '{self.name}' must be one of: {', '.join(map(str, self.enum))}."
+                f"参数 '{self.name}' 必须是以下值之一：{', '.join(map(str, self.enum))}。"
             )
 
         return value
@@ -61,7 +61,7 @@ class ToolParameter:
         return self.default is not _UNSET
 
     def to_json_schema(self) -> dict[str, Any]:
-        """Convert the parameter to a JSON schema fragment."""
+        """将参数转换为JSON Schema片段"""
         type_names = {
             str: "string",
             int: "integer",
@@ -72,7 +72,7 @@ class ToolParameter:
         }
 
         if self.param_type not in type_names:
-            raise ToolError(f"Unsupported parameter type for '{self.name}'.")
+            raise ToolError(f"参数 '{self.name}' 的类型不支持。")
 
         schema: dict[str, Any] = {
             "type": type_names[self.param_type],
@@ -86,14 +86,14 @@ class ToolParameter:
 
 
 class Tool(ABC):
-    """Base class for all tools."""
+    """所有工具的基础类"""
 
     name: str = "base_tool"
-    description: str = "Base tool interface"
+    description: str = "基础工具接口"
     parameters: list[ToolParameter] = []
 
     def run(self, **kwargs: Any) -> ToolResult:
-        """Validate inputs then execute the tool."""
+        """验证输入然后执行工具"""
         validated = self._validate_kwargs(kwargs)
         return self.execute(**validated)
 
@@ -102,7 +102,7 @@ class Tool(ABC):
         unexpected = sorted(set(kwargs) - set(parameter_map))
         if unexpected:
             raise ToolError(
-                f"Unexpected parameters for tool '{self.name}': {', '.join(unexpected)}."
+                f"工具 '{self.name}' 接收到意外参数：{', '.join(unexpected)}。"
             )
 
         validated: dict[str, Any] = {}
@@ -113,7 +113,7 @@ class Tool(ABC):
 
             if parameter.required:
                 raise ToolError(
-                    f"Missing required parameter '{parameter.name}' for tool '{self.name}'."
+                    f"工具 '{self.name}' 缺少必需参数 '{parameter.name}'。"
                 )
 
             if parameter.has_default():
@@ -122,7 +122,7 @@ class Tool(ABC):
         return validated
 
     def get_definition(self) -> dict[str, Any]:
-        """Return the internal tool definition."""
+        """返回内部工具定义"""
         return {
             "name": self.name,
             "description": self.description,
@@ -130,7 +130,7 @@ class Tool(ABC):
         }
 
     def to_openai_schema(self) -> dict[str, Any]:
-        """Return an OpenAI function tool schema."""
+        """返回OpenAI函数工具schema"""
         properties = {
             parameter.name: parameter.to_json_schema() for parameter in self.parameters
         }
@@ -150,7 +150,7 @@ class Tool(ABC):
 
     @abstractmethod
     def execute(self, **validated: Any) -> ToolResult:
-        """Execute the tool with validated keyword arguments."""
+        """使用已验证的关键字参数执行工具"""
 
 
 BaseTool = Tool

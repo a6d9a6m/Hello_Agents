@@ -1,4 +1,4 @@
-"""Example entrypoint for the Hello_Agents scaffold."""
+"""Hello_Agents脚手架的示例入口点"""
 
 from src.core.config import Config
 from src.core.llm import MockLLM

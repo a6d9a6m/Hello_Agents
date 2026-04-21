@@ -1,4 +1,4 @@
-"""LLM abstractions for Hello_Agents."""
+"""Hello_Agents的LLM抽象层"""
 
 from __future__ import annotations
 
@@ -10,28 +10,28 @@ from .message import Message
 
 
 class HelloAgentsLLM(ABC):
-    """Base LLM interface for Hello_Agents."""
+    """Hello_Agents的基础LLM接口"""
 
     @abstractmethod
     def generate(self, messages: Sequence[Message]) -> Message:
-        """Generate a response given a conversation history."""
+        """根据对话历史生成响应"""
 
 
 class MockLLM(HelloAgentsLLM):
-    """Mock LLM that echoes the last user message."""
+    """模拟LLM，回显最后一条用户消息"""
 
     def generate(self, messages: Sequence[Message]) -> Message:
         if not messages:
-            return Message(role="assistant", content="No messages provided.")
+            return Message(role="assistant", content="未提供消息。")
         
         last_message = messages[-1]
         if last_message.role == "user":
             return Message(
                 role="assistant",
-                content=f"Mock response to: {last_message.content}"
+                content=f"模拟响应：{last_message.content}"
             )
         
         return Message(
             role="assistant",
-            content="I received a non-user message."
+            content="收到非用户消息。"
         )

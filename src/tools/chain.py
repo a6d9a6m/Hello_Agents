@@ -1,4 +1,4 @@
-"""Simple tool chain orchestration."""
+"""简单的工具链编排"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from src.tools.registry import ToolRegistry
 
 
 class ToolChain:
-    """Execute a sequence of tools with independent inputs."""
+    """使用独立输入执行一系列工具"""
 
     def __init__(self, registry: ToolRegistry) -> None:
         self.registry = registry

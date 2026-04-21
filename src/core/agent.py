@@ -28,7 +28,7 @@ class Agent(ABC):
         pass
 
     def ensure_system_prompt(self) -> None:
-        """Add the configured system prompt once when needed."""
+        """在需要时添加配置的系统提示语（仅添加一次）。"""
         if not self.system_prompt:
             return
         if any(

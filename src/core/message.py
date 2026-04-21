@@ -1,4 +1,4 @@
-"""Message models shared across agents and LLMs."""
+"""跨Agent和LLM共享的消息模型"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ MessageRole = Literal["user", "assistant", "system", "tool"]
 
 
 class Message(BaseModel):
-    """Represents a single turn in a conversation."""
+    """表示对话中的单轮交互"""
 
     content: str
     role: MessageRole
@@ -28,7 +28,7 @@ class Message(BaseModel):
         )
 
     def to_dict(self) -> dict[str, str]:
-        """Convert the internal message model into the OpenAI chat format."""
+        """将内部消息模型转换为OpenAI聊天格式"""
 
         return {
             "role": self.role,

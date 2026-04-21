@@ -1,4 +1,4 @@
-"""Reflection agent skeleton."""
+"""反思Agent骨架"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from src.core.message import Message
 
 
 class ReflectionAgent(Agent):
-    """Agent that performs a first pass and a reflection pass."""
+    """执行初稿和反思两轮处理的Agent"""
 
     def run(self, user_input: str) -> Message:
         self.ensure_system_prompt()
@@ -15,7 +15,7 @@ class ReflectionAgent(Agent):
 
         draft_request = Message(
             role="user",
-            content="Write a first draft answer to the user's question.",
+            content="为用户的问题撰写初稿答案。",
         )
         self.add_message(draft_request)
         draft = self.llm.generate(self._history)
@@ -24,8 +24,8 @@ class ReflectionAgent(Agent):
         reflection_prompt = Message(
             role="user",
             content=(
-                "Reflect on the draft for correctness, missing information, and clarity. "
-                "Do not rewrite it yet."
+                "对初稿的正确性、缺失信息和清晰度进行反思。"
+                "暂时不要重写。"
             ),
         )
         self.add_message(reflection_prompt)
@@ -34,7 +34,7 @@ class ReflectionAgent(Agent):
 
         revision_prompt = Message(
             role="user",
-            content="Revise the draft using the reflection above and provide the final answer.",
+            content="基于上面的反思修订初稿，提供最终答案。",
         )
         self.add_message(revision_prompt)
         final_response = self.llm.generate(self._history)

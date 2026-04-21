@@ -1,4 +1,4 @@
-"""ReAct-style agent skeleton."""
+"""ReAct风格Agent骨架"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from src.tools.registry import ToolRegistry
 
 
 class ReActAgent(Agent):
-    """A lightweight ReAct-style agent with tool hints."""
+    """带有工具提示的轻量级ReAct风格Agent"""
 
     def __init__(
         self,
@@ -36,10 +36,10 @@ class ReActAgent(Agent):
         react_prompt = Message(
             role="user",
             content=(
-                "Think in ReAct format and respond with exactly these fields:\n"
-                "Thought: <brief reasoning>\n"
-                f"Action: <one of {', '.join(tool_names)}>\n"
-                "Action Input: <tool input>"
+                "请以ReAct格式思考，并严格按照以下字段响应：\n"
+                "思考：<简要推理>\n"
+                f"动作：<从{', '.join(tool_names)}中选择一个>\n"
+                "动作输入：<工具输入>"
             ),
         )
         self.add_message(react_prompt)
@@ -58,7 +58,7 @@ class ReActAgent(Agent):
         self.add_message(self._tool_message(tool_result))
         final_prompt = Message(
             role="user",
-            content="Use the tool observation above to provide the final answer to the user.",
+            content="基于上面的工具观察结果，为用户提供最终答案。",
         )
         self.add_message(final_prompt)
         final_response = self.llm.generate(self._history)
@@ -69,7 +69,7 @@ class ReActAgent(Agent):
         direct_prompt = Message(
             role="user",
             content=(
-                "No tools are available. Use a ReAct-style approach internally, but return only the final answer."
+                "没有可用工具。请在内部使用ReAct风格思考，但只返回最终答案。"
             ),
         )
         self.add_message(direct_prompt)
@@ -80,7 +80,7 @@ class ReActAgent(Agent):
     def _fallback_final_answer(self) -> Message:
         fallback_prompt = Message(
             role="user",
-            content="Provide the best final answer directly based on the conversation so far.",
+            content="根据当前的对话内容，直接提供最佳最终答案。",
         )
         self.add_message(fallback_prompt)
         response = self.llm.generate(self._history)
@@ -88,14 +88,31 @@ class ReActAgent(Agent):
         return response
 
     def _parse_action(self, content: str) -> tuple[str | None, str]:
-        action_match = re.search(r"^Action:\s*(.+)$", content, re.MULTILINE)
-        input_match = re.search(
-            r"^Action Input:\s*(.*?)(?:\n[A-Z][A-Za-z ]*:\s|\Z)",
-            content,
-            re.MULTILINE | re.DOTALL,
-        )
-        action = action_match.group(1).strip() if action_match else None
-        action_input = input_match.group(1).strip() if input_match else ""
+        # 支持中文和英文格式，使用更宽松的匹配
+        lines = content.split('\n')
+        action = None
+        action_input = ""
+        
+        for line in lines:
+            line = line.strip()
+            # 匹配动作行（需要精确匹配行开头）
+            if line.startswith('动作:') or line.startswith('动作：') or line.startswith('Action:'):
+                # 找到分隔符位置
+                if line.startswith('动作:'):
+                    action = line[3:].strip()  # 跳过"动作:"
+                elif line.startswith('动作：'):
+                    action = line[3:].strip()  # 跳过"动作："（注意中文字符长度）
+                elif line.startswith('Action:'):
+                    action = line[7:].strip()  # 跳过"Action:"
+            # 匹配动作输入行
+            elif line.startswith('动作输入:') or line.startswith('动作输入：') or line.startswith('Action Input:'):
+                if line.startswith('动作输入:'):
+                    action_input = line[5:].strip()  # 跳过"动作输入:"
+                elif line.startswith('动作输入：'):
+                    action_input = line[5:].strip()  # 跳过"动作输入："（注意中文字符长度）
+                elif line.startswith('Action Input:'):
+                    action_input = line[13:].strip()  # 跳过"Action Input:"
+        
         return action, action_input
 
     def _build_tool_kwargs(self, action: str, action_input: str) -> dict[str, str]:

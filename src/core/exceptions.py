@@ -1,21 +1,21 @@
-"""Project-specific exception hierarchy."""
+"""项目特定的异常层次结构"""
 
 
 class HelloAgentsError(Exception):
-    """Base exception for all project errors."""
+    """所有项目错误的基础异常"""
 
 
 class ConfigError(HelloAgentsError):
-    """Raised when configuration is invalid or missing."""
+    """配置无效或缺失时抛出"""
 
 
 class LLMError(HelloAgentsError):
-    """Raised when LLM invocation fails."""
+    """LLM调用失败时抛出"""
 
 
 class ToolError(HelloAgentsError):
-    """Raised when tool execution fails."""
+    """工具执行失败时抛出"""
 
 
 class AgentError(HelloAgentsError):
-    """Raised when agent execution fails."""
+    """Agent执行失败时抛出"""
