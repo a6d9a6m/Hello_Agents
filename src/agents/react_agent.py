@@ -123,7 +123,7 @@ class ReActAgent(Agent):
             return {tool.parameters[0].name: action_input}
         if any(parameter.name == "input" for parameter in tool.parameters):
             return {"input": action_input}
-        raise ToolError(f"Tool '{action}' requires explicit parameter mapping.")
+        raise ToolError(f"工具 '{action}' 需要显式的参数映射。")
 
     def _tool_message(self, result: object) -> Message:
         if isinstance(result, ToolResult):
