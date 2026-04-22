@@ -1,56 +1,44 @@
-"""记忆子系统"""
+"""实验性记忆子系统的公共导出。"""
 
-from src.memory.base import (
-    MemoryType,
-    MemoryItem,
-    MemoryConfig,
-    BaseMemory
+from src.memory.base import BaseMemory, MemoryConfig, MemoryItem, MemoryType
+from src.memory.embedding import (
+    DashScopeEmbedding,
+    EmbeddingService,
+    GiteeEmbedding,
+    LocalEmbedding,
+    TFIDFEmbedding,
+    create_embedding_service,
 )
 from src.memory.manager import MemoryManager
-from src.memory.embedding import (
-    EmbeddingService,
-    DashScopeEmbedding,
-    LocalEmbedding,
-    TFIDFEmbedding
-)
-from src.memory.types.working import WorkingMemory
-from src.memory.types.episodic import EpisodicMemory
-from src.memory.types.semantic import SemanticMemory
-from src.memory.types.perceptual import PerceptualMemory
-from src.memory.storage.qdrant_store import QdrantStore
-from src.memory.storage.neo4j_store import Neo4jStore
-from src.memory.storage.document_store import DocumentStore
-from src.memory.rag.pipeline import RAGPipeline, SimpleRAGPipeline, HybridRAGPipeline
 from src.memory.rag.document import DocumentProcessor
+from src.memory.rag.pipeline import HybridRAGPipeline, RAGPipeline, SimpleRAGPipeline
+from src.memory.storage.document_store import DocumentStore
+from src.memory.storage.neo4j_store import Neo4jStore
+from src.memory.storage.qdrant_store import QdrantStore
+from src.memory.types.episodic import EpisodicMemory
+from src.memory.types.perceptual import PerceptualMemory
+from src.memory.types.semantic import SemanticMemory
+from src.memory.types.working import WorkingMemory
 
 __all__ = [
-    # 基础
     "MemoryType",
     "MemoryItem",
     "MemoryConfig",
     "BaseMemory",
-    
-    # 管理器
     "MemoryManager",
-    
-    # 嵌入服务
     "EmbeddingService",
+    "GiteeEmbedding",
     "DashScopeEmbedding",
     "LocalEmbedding",
     "TFIDFEmbedding",
-    
-    # 记忆类型
+    "create_embedding_service",
     "WorkingMemory",
     "EpisodicMemory",
     "SemanticMemory",
     "PerceptualMemory",
-    
-    # 存储后端
     "QdrantStore",
     "Neo4jStore",
     "DocumentStore",
-    
-    # RAG系统
     "RAGPipeline",
     "SimpleRAGPipeline",
     "HybridRAGPipeline",

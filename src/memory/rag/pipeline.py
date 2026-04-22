@@ -1,273 +1,363 @@
-"""RAG管道实现"""
+"""实验性记忆子系统的RAG管道实现。"""
 
 from __future__ import annotations
 
-from typing import List, Dict, Any, Optional
 from abc import ABC, abstractmethod
+from typing import Any, Dict, List, Optional
 
 from src.memory.base import MemoryConfig
-from src.memory.embedding import EmbeddingService
+from src.memory.embedding import EmbeddingService, create_embedding_service
 from src.memory.rag.document import DocumentProcessor
 
 
 class RAGPipeline(ABC):
-    """RAG管道抽象类"""
-    
+    """RAG管道的抽象基类。"""
+
     def __init__(self, config: Optional[MemoryConfig] = None):
-        self.config = config or MemoryConfig()
-        # 使用TFIDF嵌入作为默认实现
-        from src.memory.embedding import TFIDFEmbedding
-        self.embedding_service = TFIDFEmbedding(self.config)
+        """初始化RAG管道。
+        
+        参数:
+            config: 记忆配置，默认为从环境变量读取的配置
+        """
+        self.config = config or MemoryConfig.from_env()
+        self.embedding_service: EmbeddingService = create_embedding_service(self.config)
         self.document_processor = DocumentProcessor()
-    
+
     @abstractmethod
     def ingest(self, documents: List[Dict[str, Any]]) -> List[str]:
-        """文档摄取"""
-        pass
-    
+        """将文档摄入管道。
+        
+        参数:
+            documents: 文档列表
+            
+        返回:
+            文档ID列表
+        """
+
     @abstractmethod
     def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """检索相关文档"""
-        pass
-    
+        """检索相关文档。
+        
+        参数:
+            query: 查询文本
+            top_k: 返回结果的最大数量
+            
+        返回:
+            相关文档列表
+        """
+
     @abstractmethod
     def generate(self, query: str, context: List[Dict[str, Any]]) -> str:
-        """生成答案"""
-        pass
-    
+        """生成答案。
+        
+        参数:
+            query: 查询文本
+            context: 上下文文档列表
+            
+        返回:
+            生成的答案文本
+        """
+
     def query(self, query: str) -> str:
-        """端到端查询"""
-        # 1. 检索
+        """执行完整查询流程。
+        
+        参数:
+            query: 查询文本
+            
+        返回:
+            生成的答案文本
+        """
         context = self.retrieve(query)
-        
-        # 2. 生成
         answer = self.generate(query, context)
-        
         return answer
 
 
 class SimpleRAGPipeline(RAGPipeline):
-    """简单RAG管道实现"""
-    
+    """仅使用向量的简单RAG管道。"""
+
     def __init__(self, config: Optional[MemoryConfig] = None):
+        """初始化简单RAG管道。
+        
+        参数:
+            config: 记忆配置，默认为从环境变量读取的配置
+        """
         super().__init__(config)
         self.documents: List[Dict[str, Any]] = []
         self.embeddings: List[List[float]] = []
-    
+
     def ingest(self, documents: List[Dict[str, Any]]) -> List[str]:
-        """文档摄取"""
-        doc_ids = []
+        """将文档摄入管道。
         
+        参数:
+            documents: 文档列表
+            
+        返回:
+            文档ID列表
+        """
+        doc_ids: List[str] = []
+
         for doc in documents:
-            # 处理文档
             processed = self.document_processor.process(doc)
-            
-            # 生成嵌入
             embedding = self.embedding_service.embed(processed["content"])
-            
-            # 存储
+
             doc_id = f"doc_{len(self.documents)}"
-            self.documents.append({
-                "id": doc_id,
-                "content": processed["content"],
-                "metadata": processed["metadata"],
-                "embedding": embedding
-            })
+            self.documents.append(
+                {
+                    "id": doc_id,
+                    "content": processed["content"],
+                    "metadata": processed["metadata"],
+                    "embedding": embedding,
+                }
+            )
             self.embeddings.append(embedding)
             doc_ids.append(doc_id)
-        
+
         return doc_ids
-    
+
     def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """检索相关文档"""
+        """检索相关文档。
+        
+        参数:
+            query: 查询文本
+            top_k: 返回结果的最大数量
+            
+        返回:
+            相关文档列表
+        """
         if not self.documents:
             return []
-        
-        # 生成查询嵌入
+
         query_embedding = self.embedding_service.embed(query)
-        
-        # 计算相似度
+
         similarities = []
-        for i, doc_embedding in enumerate(self.embeddings):
+        for idx, doc_embedding in enumerate(self.embeddings):
             similarity = self.embedding_service.cosine_similarity(query_embedding, doc_embedding)
-            similarities.append((i, similarity))
-        
-        # 排序并取top_k
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        top_indices = [idx for idx, _ in similarities[:top_k]]
-        
-        # 返回文档信息
+            similarities.append((idx, similarity))
+
         results = []
-        for idx in top_indices:
+        similarities.sort(key=lambda item: item[1], reverse=True)
+        for idx, similarity in similarities[:top_k]:
             doc = self.documents[idx]
-            results.append({
-                "content": doc["content"],
-                "metadata": doc["metadata"],
-                "similarity": similarities[idx][1]
-            })
-        
+            results.append(
+                {
+                    "content": doc["content"],
+                    "metadata": doc["metadata"],
+                    "similarity": similarity,
+                }
+            )
+
         return results
-    
+
     def generate(self, query: str, context: List[Dict[str, Any]]) -> str:
-        """生成答案（简化实现）"""
+        """生成答案。
+        
+        参数:
+            query: 查询文本
+            context: 上下文文档列表
+            
+        返回:
+            生成的答案文本
+        """
         if not context:
             return "未找到相关信息。"
-        
-        # 构建上下文
-        context_text = "\n\n".join([
-            f"[文档 {i+1}]\n{doc['content'][:500]}..."
-            for i, doc in enumerate(context)
-        ])
-        
-        # 这里应该调用LLM生成答案
-        # 简化实现：返回上下文摘要
-        
-        return f"基于以下信息回答：{query}\n\n相关上下文：\n{context_text[:1000]}..."
-    
+
+        context_text = "\n\n".join(
+            [f"[文档 {idx + 1}]\n{doc['content'][:500]}..." for idx, doc in enumerate(context)]
+        )
+        return f"问题: {query}\n\n上下文:\n{context_text[:1000]}..."
+
     def clear(self):
-        """清空管道"""
+        """清空管道中的所有文档和嵌入。"""
         self.documents.clear()
         self.embeddings.clear()
 
 
 class HybridRAGPipeline(RAGPipeline):
-    """混合RAG管道（结合向量检索和关键词检索）"""
-    
+    """混合RAG管道：结合向量和关键词检索。"""
+
     def __init__(self, config: Optional[MemoryConfig] = None):
+        """初始化混合RAG管道。
+        
+        参数:
+            config: 记忆配置，默认为从环境变量读取的配置
+        """
         super().__init__(config)
         self.vector_docs: List[Dict[str, Any]] = []
         self.vector_embeddings: List[List[float]] = []
         self.keyword_index: Dict[str, List[int]] = {}
-    
+
     def ingest(self, documents: List[Dict[str, Any]]) -> List[str]:
-        """文档摄取（建立向量和关键词索引）"""
-        doc_ids = []
+        """将文档摄入管道。
         
-        for doc_idx, doc in enumerate(documents):
-            # 处理文档
+        参数:
+            documents: 文档列表
+            
+        返回:
+            文档ID列表
+        """
+        doc_ids: List[str] = []
+
+        for doc in documents:
             processed = self.document_processor.process(doc)
-            
-            # 生成嵌入
             embedding = self.embedding_service.embed(processed["content"])
-            
-            # 存储向量
+
             doc_id = f"doc_{len(self.vector_docs)}"
-            self.vector_docs.append({
-                "id": doc_id,
-                "content": processed["content"],
-                "metadata": processed["metadata"],
-                "embedding": embedding
-            })
+            doc_idx = len(self.vector_docs)
+            self.vector_docs.append(
+                {
+                    "id": doc_id,
+                    "content": processed["content"],
+                    "metadata": processed["metadata"],
+                    "embedding": embedding,
+                }
+            )
             self.vector_embeddings.append(embedding)
-            
-            # 建立关键词索引
             self._build_keyword_index(doc_idx, processed["content"])
-            
             doc_ids.append(doc_id)
-        
+
         return doc_ids
-    
+
     def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """混合检索"""
+        """检索相关文档。
+        
+        参数:
+            query: 查询文本
+            top_k: 返回结果的最大数量
+            
+        返回:
+            相关文档列表
+        """
         if not self.vector_docs:
             return []
-        
-        # 向量检索
+
         vector_results = self._vector_retrieve(query, top_k)
-        
-        # 关键词检索
         keyword_results = self._keyword_retrieve(query, top_k)
-        
-        # 合并结果（去重，加权）
-        combined = self._merge_results(vector_results, keyword_results, top_k)
-        
-        return combined
-    
+        return self._merge_results(vector_results, keyword_results, top_k)
+
     def generate(self, query: str, context: List[Dict[str, Any]]) -> str:
-        """生成答案"""
+        """生成答案。
+        
+        参数:
+            query: 查询文本
+            context: 上下文文档列表
+            
+        返回:
+            生成的答案文本
+        """
         return SimpleRAGPipeline.generate(self, query, context)
-    
+
     def _build_keyword_index(self, doc_idx: int, content: str):
-        """建立关键词索引"""
-        # 简单分词（实际应该使用更好的分词器）
-        words = content.lower().split()
+        """构建关键词索引。
         
-        for word in words:
-            if len(word) > 2:  # 忽略短词
-                if word not in self.keyword_index:
-                    self.keyword_index[word] = []
-                if doc_idx not in self.keyword_index[word]:
-                    self.keyword_index[word].append(doc_idx)
-    
+        参数:
+            doc_idx: 文档索引
+            content: 文档内容
+        """
+        for word in content.lower().split():
+            if len(word) <= 2:
+                continue
+            bucket = self.keyword_index.setdefault(word, [])
+            if doc_idx not in bucket:
+                bucket.append(doc_idx)
+
     def _vector_retrieve(self, query: str, top_k: int) -> List[Dict[str, Any]]:
-        """向量检索"""
+        """向量检索。
+        
+        参数:
+            query: 查询文本
+            top_k: 返回结果的最大数量
+            
+        返回:
+            向量检索结果列表
+        """
         query_embedding = self.embedding_service.embed(query)
-        
+
         similarities = []
-        for i, doc_embedding in enumerate(self.vector_embeddings):
+        for idx, doc_embedding in enumerate(self.vector_embeddings):
             similarity = self.embedding_service.cosine_similarity(query_embedding, doc_embedding)
-            similarities.append((i, similarity))
-        
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        
+            similarities.append((idx, similarity))
+
+        similarities.sort(key=lambda item: item[1], reverse=True)
+
         results = []
         for idx, similarity in similarities[:top_k]:
             doc = self.vector_docs[idx]
-            results.append({
-                "content": doc["content"],
-                "metadata": doc["metadata"],
-                "similarity": similarity,
-                "retrieval_method": "vector"
-            })
-        
+            results.append(
+                {
+                    "content": doc["content"],
+                    "metadata": doc["metadata"],
+                    "similarity": similarity,
+                    "retrieval_method": "vector",
+                }
+            )
+
         return results
-    
+
     def _keyword_retrieve(self, query: str, top_k: int) -> List[Dict[str, Any]]:
-        """关键词检索"""
+        """关键词检索。
+        
+        参数:
+            query: 查询文本
+            top_k: 返回结果的最大数量
+            
+        返回:
+            关键词检索结果列表
+        """
         query_words = query.lower().split()
-        doc_scores = {}
-        
+        doc_scores: Dict[int, int] = {}
+
         for word in query_words:
-            if word in self.keyword_index:
-                for doc_idx in self.keyword_index[word]:
-                    doc_scores[doc_idx] = doc_scores.get(doc_idx, 0) + 1
-        
-        # 按分数排序
-        sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
-        
+            for doc_idx in self.keyword_index.get(word, []):
+                doc_scores[doc_idx] = doc_scores.get(doc_idx, 0) + 1
+
+        sorted_docs = sorted(doc_scores.items(), key=lambda item: item[1], reverse=True)
+
         results = []
         for doc_idx, score in sorted_docs[:top_k]:
             doc = self.vector_docs[doc_idx]
-            results.append({
-                "content": doc["content"],
-                "metadata": doc["metadata"],
-                "similarity": score / len(query_words),  # 归一化
-                "retrieval_method": "keyword"
-            })
-        
+            results.append(
+                {
+                    "content": doc["content"],
+                    "metadata": doc["metadata"],
+                    "similarity": score / len(query_words) if query_words else 0.0,
+                    "retrieval_method": "keyword",
+                }
+            )
+
         return results
-    
-    def _merge_results(self, vector_results: List[Dict], keyword_results: List[Dict], top_k: int) -> List[Dict]:
-        """合并检索结果"""
-        # 使用集合去重（基于内容）
+
+    def _merge_results(
+        self,
+        vector_results: List[Dict[str, Any]],
+        keyword_results: List[Dict[str, Any]],
+        top_k: int,
+    ) -> List[Dict[str, Any]]:
+        """合并向量和关键词检索结果。
+        
+        参数:
+            vector_results: 向量检索结果
+            keyword_results: 关键词检索结果
+            top_k: 返回结果的最大数量
+            
+        返回:
+            合并后的结果列表
+        """
         seen_contents = set()
         merged = []
-        
-        # 优先向量检索结果
+
         for result in vector_results:
-            content_hash = hash(result["content"][:100])  # 简单哈希
-            if content_hash not in seen_contents:
-                seen_contents.add(content_hash)
-                merged.append(result)
-        
-        # 补充关键词检索结果
-        for result in keyword_results:
-            if len(merged) >= top_k:
-                break
-            
             content_hash = hash(result["content"][:100])
             if content_hash not in seen_contents:
                 seen_contents.add(content_hash)
                 merged.append(result)
-        
+
+        for result in keyword_results:
+            if len(merged) >= top_k:
+                break
+
+            content_hash = hash(result["content"][:100])
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                merged.append(result)
+
         return merged[:top_k]
