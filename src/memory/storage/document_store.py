@@ -77,7 +77,15 @@ class DocumentStore:
         
         self.connection.commit()
     
-    def store_document(self, doc_id: str, content: str, doc_type: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+    def store_document(
+        self,
+        doc_id: str,
+        content: str,
+        doc_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+    ) -> bool:
         """存储文档"""
         self._ensure_initialized()
         
@@ -93,24 +101,95 @@ class DocumentStore:
             
             metadata_json = json.dumps(metadata or {})
             
+            created_at_text = created_at.isoformat() if created_at else None
+            updated_at_text = updated_at.isoformat() if updated_at else None
+
             if existing:
                 # 更新现有文档
-                cursor.execute("""
-                UPDATE documents 
-                SET content = ?, doc_type = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """, (content, doc_type, metadata_json, doc_id))
+                if updated_at_text:
+                    cursor.execute(
+                        """
+                        UPDATE documents
+                        SET content = ?, doc_type = ?, metadata = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (content, doc_type, metadata_json, updated_at_text, doc_id),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE documents
+                        SET content = ?, doc_type = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (content, doc_type, metadata_json, doc_id),
+                    )
             else:
                 # 插入新文档
-                cursor.execute("""
-                INSERT INTO documents (id, content, doc_type, metadata)
-                VALUES (?, ?, ?, ?)
-                """, (doc_id, content, doc_type, metadata_json))
+                if created_at_text or updated_at_text:
+                    cursor.execute(
+                        """
+                        INSERT INTO documents (id, content, doc_type, metadata, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            doc_id,
+                            content,
+                            doc_type,
+                            metadata_json,
+                            created_at_text or datetime.now().isoformat(),
+                            updated_at_text or created_at_text or datetime.now().isoformat(),
+                        ),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO documents (id, content, doc_type, metadata)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (doc_id, content, doc_type, metadata_json),
+                    )
             
             self.connection.commit()
             return True
         except Exception as e:
             print(f"存储文档失败：{e}")
+            return False
+
+    def update_document(
+        self,
+        doc_id: str,
+        *,
+        content: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """更新文档内容或元数据。"""
+        self._ensure_initialized()
+
+        if self.connection is None:
+            return True
+
+        try:
+            current = self.get_document(doc_id)
+            if current is None:
+                return False
+
+            next_content = current["content"] if content is None else content
+            next_metadata = current["metadata"] if metadata is None else metadata
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                """
+                UPDATE documents
+                SET content = ?, metadata = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (next_content, json.dumps(next_metadata or {}), doc_id),
+            )
+            self.connection.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"更新文档失败：{e}")
             return False
     
     def get_document(self, doc_id: str) -> Optional[Dict[str, Any]]:
@@ -180,6 +259,129 @@ class DocumentStore:
             return results
         except Exception as e:
             print(f"搜索文档失败：{e}")
+            return []
+
+    def list_documents(self, doc_type: Optional[str] = None, limit: int = 1000) -> List[Dict[str, Any]]:
+        """按时间顺序列出文档。"""
+        self._ensure_initialized()
+
+        if self.connection is None:
+            return []
+
+        try:
+            cursor = self.connection.cursor()
+            if doc_type:
+                cursor.execute(
+                    """
+                    SELECT * FROM documents
+                    WHERE doc_type = ?
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (doc_type, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM documents
+                    ORDER BY created_at ASC, id ASC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+
+            return [self._row_to_document(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"列出文档失败：{e}")
+            return []
+
+    def search_documents_by_metadata_keyword(
+        self,
+        query: str,
+        doc_type: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """在内容和元数据 JSON 中做轻量关键词检索。"""
+        self._ensure_initialized()
+
+        if self.connection is None:
+            return []
+
+        try:
+            cursor = self.connection.cursor()
+            like_query = f"%{query}%"
+            if doc_type:
+                cursor.execute(
+                    """
+                    SELECT * FROM documents
+                    WHERE doc_type = ? AND (content LIKE ? OR metadata LIKE ?)
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (doc_type, like_query, like_query, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM documents
+                    WHERE content LIKE ? OR metadata LIKE ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (like_query, like_query, limit),
+                )
+
+            return [self._row_to_document(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"按元数据搜索文档失败：{e}")
+            return []
+
+    def list_documents_by_time_range(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        doc_type: Optional[str] = None,
+        limit: int = 1000,
+    ) -> List[Dict[str, Any]]:
+        """按创建时间范围查询文档，保留时间线顺序。"""
+        self._ensure_initialized()
+
+        if self.connection is None:
+            return []
+
+        try:
+            conditions: List[str] = []
+            parameters: List[Any] = []
+
+            if doc_type:
+                conditions.append("doc_type = ?")
+                parameters.append(doc_type)
+
+            if start_time:
+                conditions.append("created_at >= ?")
+                parameters.append(start_time.isoformat())
+
+            if end_time:
+                conditions.append("created_at <= ?")
+                parameters.append(end_time.isoformat())
+
+            where_clause = ""
+            if conditions:
+                where_clause = " WHERE " + " AND ".join(conditions)
+
+            cursor = self.connection.cursor()
+            cursor.execute(
+                f"""
+                SELECT * FROM documents
+                {where_clause}
+                ORDER BY created_at ASC, id ASC
+                LIMIT ?
+                """,
+                (*parameters, limit),
+            )
+            return [self._row_to_document(row) for row in cursor.fetchall()]
+        except Exception as e:
+            print(f"按时间范围查询文档失败：{e}")
             return []
     
     def delete(self, doc_id: str) -> bool:
@@ -284,6 +486,24 @@ class DocumentStore:
         except Exception as e:
             print(f"清空数据库失败：{e}")
             return False
+
+    def close(self) -> None:
+        """关闭 SQLite 连接，便于测试和进程退出时释放文件句柄。"""
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = None
+        self._initialized = False
+
+    def _row_to_document(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """统一将 SQLite 行对象转换为字典。"""
+        return {
+            "id": row["id"],
+            "content": row["content"],
+            "doc_type": row["doc_type"],
+            "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
     
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""

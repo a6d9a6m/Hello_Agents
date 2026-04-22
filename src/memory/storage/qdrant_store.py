@@ -1,167 +1,219 @@
-"""Qdrant向量存储实现"""
+"""Qdrant vector store with local fallback cache."""
 
 from __future__ import annotations
 
-from typing import List, Dict, Any, Optional
+import uuid
+from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 from src.memory.base import MemoryConfig
 
 
 class QdrantStore:
-    """Qdrant向量存储客户端"""
-    
+    """Thin Qdrant wrapper used by memory backends."""
+
+    _DISTANCE_MAP = {
+        "cosine": "COSINE",
+        "dot": "DOT",
+        "euclid": "EUCLID",
+        "manhattan": "MANHATTAN",
+    }
+
     def __init__(self, config: Optional[MemoryConfig] = None):
-        self.config = config or MemoryConfig()
+        self.config = config or MemoryConfig.from_env()
         self.client = None
-        self.collection_name = config.vector_collection_name if config else "memories"
-        
-        # 延迟初始化客户端
+        self.collection_name = self.config.vector_collection_name
+        self._local_points: Dict[str, Dict[str, Any]] = {}
         self._initialized = False
-    
+
     def _ensure_initialized(self):
-        """确保客户端已初始化"""
-        if not self._initialized:
-            try:
-                # 尝试导入qdrant-client
-                import qdrant_client
-                from qdrant_client.http import models
-                
-                self.client = qdrant_client.QdrantClient(
-                    url=self.config.vector_store_url,
-                    timeout=30
+        if self._initialized:
+            return
+
+        try:
+            import qdrant_client
+            from qdrant_client.http import models
+
+            distance_name = self._DISTANCE_MAP.get(self.config.vector_distance.lower(), "COSINE")
+            distance = getattr(models.Distance, distance_name)
+
+            self.client = qdrant_client.QdrantClient(
+                url=self.config.vector_store_url,
+                api_key=self.config.vector_store_api_key,
+                timeout=self.config.vector_timeout,
+            )
+
+            collections = self.client.get_collections().collections
+            collection_names = [collection.name for collection in collections]
+            if self.collection_name not in collection_names:
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=models.VectorParams(
+                        size=self.config.embedding_dimension,
+                        distance=distance,
+                    ),
                 )
-                
-                # 检查集合是否存在，不存在则创建
-                collections = self.client.get_collections().collections
-                collection_names = [col.name for col in collections]
-                
-                if self.collection_name not in collection_names:
-                    self.client.create_collection(
-                        collection_name=self.collection_name,
-                        vectors_config=models.VectorParams(
-                            size=self.config.embedding_dimension,
-                            distance=models.Distance.COSINE
-                        )
-                    )
-                
-                self._initialized = True
-                
-            except ImportError:
-                print("警告：未安装qdrant-client，使用模拟模式")
-                self.client = None
-                self._initialized = True
-    
-    def store_vector(self, vector_id: str, vector: List[float], payload: Dict[str, Any]) -> bool:
-        """存储向量"""
+        except ImportError:
+            self.client = None
+        except Exception as exc:
+            print(f"warning: qdrant unavailable, fallback to local cache: {exc}")
+            self.client = None
+        finally:
+            self._initialized = True
+
+    def is_available(self) -> bool:
         self._ensure_initialized()
-        
+        return self.client is not None
+
+    def store_vector(self, vector_id: str, vector: List[float], payload: Dict[str, Any]) -> bool:
+        self._ensure_initialized()
+        normalized_id = self._normalize_point_id(vector_id)
+        stored_payload = self._with_internal_payload(vector_id=vector_id, payload=payload)
+        self._local_points[str(vector_id)] = {
+            "id": str(vector_id),
+            "vector": list(vector or []),
+            "payload": stored_payload,
+        }
+
         if self.client is None:
-            # 模拟模式
             return True
-        
+
         try:
             from qdrant_client.http import models
-            
+
             self.client.upsert(
                 collection_name=self.collection_name,
                 points=[
                     models.PointStruct(
-                        id=vector_id,
-                        vector=vector,
-                        payload=payload
+                        id=normalized_id,
+                        vector=list(vector or []),
+                        payload=stored_payload,
                     )
-                ]
+                ],
             )
             return True
-        except Exception as e:
-            print(f"存储向量失败：{e}")
+        except Exception as exc:
+            print(f"store vector failed: {exc}")
             return False
-    
+
     def search(self, query_vector: List[float], limit: int = 10) -> List[Dict[str, Any]]:
-        """搜索相似向量"""
         self._ensure_initialized()
-        
         if self.client is None:
-            # 模拟模式：返回空结果
-            return []
-        
+            return self._search_local(query_vector=query_vector, limit=limit)
+
         try:
-            results = self.client.search(
+            response = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
-                limit=limit
+                query=list(query_vector or []),
+                limit=limit,
+                with_payload=True,
+                with_vectors=True,
             )
-            
-            return [
-                {
-                    "id": result.id,
-                    "vector": result.vector,
-                    "payload": result.payload,
-                    "score": result.score
-                }
-                for result in results
-            ]
-        except Exception as e:
-            print(f"搜索向量失败：{e}")
-            return []
-    
+            results = getattr(response, "points", response)
+            normalized = []
+            for result in results:
+                payload = result.payload or {}
+                normalized.append(
+                    {
+                        "id": str(payload.get("_memory_id") or result.id),
+                        "vector": getattr(result, "vector", None),
+                        "payload": payload,
+                        "score": float(result.score or 0.0),
+                    }
+                )
+            return normalized
+        except Exception as exc:
+            print(f"search vector failed: {exc}")
+            return self._search_local(query_vector=query_vector, limit=limit)
+
     def delete(self, vector_id: str) -> bool:
-        """删除向量"""
         self._ensure_initialized()
-        
+        self._local_points.pop(str(vector_id), None)
         if self.client is None:
             return True
-        
+
         try:
             self.client.delete(
                 collection_name=self.collection_name,
-                points_selector=[vector_id]
+                points_selector=[self._normalize_point_id(vector_id)],
             )
             return True
-        except Exception as e:
-            print(f"删除向量失败：{e}")
+        except Exception as exc:
+            print(f"delete vector failed: {exc}")
             return False
-    
+
     def clear(self) -> bool:
-        """清空集合"""
         self._ensure_initialized()
-        
+        self._local_points.clear()
         if self.client is None:
             return True
-        
+
         try:
-            # 删除并重新创建集合
             self.client.delete_collection(self.collection_name)
-            from qdrant_client.http import models
-            
-            self.client.create_collection(
-                collection_name=self.collection_name,
-                vectors_config=models.VectorParams(
-                    size=self.config.embedding_dimension,
-                    distance=models.Distance.COSINE
-                )
-            )
+            self._initialized = False
+            self._ensure_initialized()
             return True
-        except Exception as e:
-            print(f"清空集合失败：{e}")
+        except Exception as exc:
+            print(f"clear collection failed: {exc}")
             return False
-    
+
     def get_stats(self) -> Dict[str, Any]:
-        """获取集合统计信息"""
         self._ensure_initialized()
-        
         if self.client is None:
-            return {"status": "simulated", "count": 0}
-        
+            return {"status": "simulated", "count": len(self._local_points)}
+
         try:
             collection_info = self.client.get_collection(self.collection_name)
             return {
                 "status": "ok",
-                "vectors_count": collection_info.vectors_count,
-                "points_count": collection_info.points_count,
-                "segments_count": len(collection_info.segments)
+                "vectors_count": getattr(collection_info, "vectors_count", None),
+                "points_count": getattr(collection_info, "points_count", None),
             }
-        except Exception as e:
-            print(f"获取统计信息失败：{e}")
-            return {"status": "error", "error": str(e)}
+        except Exception as exc:
+            return {"status": "error", "error": str(exc)}
+
+    def get_all_points(self) -> List[Dict[str, Any]]:
+        self._ensure_initialized()
+        return list(self._local_points.values())
+
+    def _search_local(self, query_vector: List[float], limit: int) -> List[Dict[str, Any]]:
+        if limit <= 0:
+            return []
+
+        scored_results = []
+        query = np.array(query_vector or [], dtype=float)
+        query_norm = float(np.linalg.norm(query)) if query.size else 0.0
+
+        for point in self._local_points.values():
+            vector = np.array(point.get("vector") or [], dtype=float)
+            vector_norm = float(np.linalg.norm(vector)) if vector.size else 0.0
+            if query_norm == 0.0 or vector_norm == 0.0:
+                score = 0.0
+            else:
+                score = float(np.dot(query, vector) / (query_norm * vector_norm))
+            scored_results.append(
+                {
+                    "id": point.get("id", ""),
+                    "vector": point.get("vector", []),
+                    "payload": point.get("payload", {}),
+                    "score": score,
+                }
+            )
+
+        scored_results.sort(key=lambda item: item.get("score", 0.0), reverse=True)
+        return scored_results[:limit]
+
+    def _normalize_point_id(self, vector_id: str) -> int | str:
+        raw = str(vector_id)
+        if raw.isdigit():
+            return int(raw)
+        try:
+            return str(uuid.UUID(raw))
+        except ValueError:
+            return str(uuid.uuid5(uuid.NAMESPACE_URL, raw))
+
+    def _with_internal_payload(self, vector_id: str, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        normalized = dict(payload or {})
+        normalized["_memory_id"] = str(vector_id)
+        return normalized
