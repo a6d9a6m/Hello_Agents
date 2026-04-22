@@ -5,7 +5,11 @@ description = "A lightweight multi-agent learning project scaffold."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "neo4j>=5.0.0",
+    "numpy>=1.26.0",
+    "openai>=1.0.0",
     "pydantic>=2.0.0",
+    "qdrant-client>=1.9.0",
 ]
 
 [project.optional-dependencies]
